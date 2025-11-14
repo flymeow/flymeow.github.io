@@ -1,0 +1,3 @@
+User-agent: *
+Disallow:
+Sitemap: https://flymeow.github.io/sitemap.xml
