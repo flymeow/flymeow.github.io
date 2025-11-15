@@ -3,7 +3,7 @@
     <title>flymeow</title>
     <link href="https://flymeow.github.io/feed.xml" rel="self" />
     <link href="https://flymeow.github.io" />
-    <updated>2025-11-15T17:02:47+08:00</updated>
+    <updated>2025-11-15T17:30:30+08:00</updated>
     <author>
         <name>flymeow</name>
     </author>
@@ -77,7 +77,7 @@
   A--&gt;&gt;B: DTLS handshake
   A--&gt;&gt;B: SRTP/SCTP secured traffic
 </code></pre>
-<figure class="post__image"><img loading="lazy" src="" alt="Uploading file..." data-is-external-image="true"></figure><h2 id="4-信令：不内置，需你自定义">4. 信令：不内置，需你自定义</h2>
+<figure class="post__image"><img loading="lazy" src="https://raw.githubusercontent.com/flymeow/images/49e006f7f6a6c61dedaa3614a0c52ffc80e6739e/signaling-sequence.svg" alt="Signaling Components" data-is-external-image="true"></figure><h2 id="4-信令：不内置，需你自定义">4. 信令：不内置，需你自定义</h2>
 <p>定义</p><ul>
 <li>信令用于引导呼叫。它不是 WebRTC 自带能力，需用自选通道传递文本消息（如 WebSocket、HTTP）。</li>
 </ul>
@@ -105,8 +105,7 @@
   A == media/data ==&gt; B
   classDef edge stroke:#999,stroke-width:1px;
 </code></pre>
-<p>静态图（SVG）
-<figure class="post__image"><img loading="lazy" src="images/signaling-components.svg" alt="Signaling Components" data-is-external-image="true"></figure></p><h2 id="5-连接：ice-的关键点">5. 连接：ICE 的关键点</h2>
+<figure class="post__image"><img loading="lazy" src="https://raw.githubusercontent.com/flymeow/images/49e006f7f6a6c61dedaa3614a0c52ffc80e6739e/signaling-components.svg" alt="Signaling Components" data-is-external-image="true"></figure><h2 id="5-连接：ice-的关键点">5. 连接：ICE 的关键点</h2>
 <ul>
 <li>候选类型：<code>host</code>、<code>srflx</code>（STUN 反射）、<code>relay</code>（TURN 中继）。</li>
 <li>Trickle ICE：边收集边发送，缩短首帧时间。</li>
