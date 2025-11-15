@@ -1,0 +1,103 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WebRTC 01：初步认识 WebRTC 与信令服务器 - flymeow</title><meta name="description" content="WebRTC 01：初步认识 WebRTC 与信令服务器 1. 是什么 WebRTC 协议：两端安全实时通信的一组规则集合，涵盖协商、连通、加密与媒体/数据传输。 WebRTC API：浏览器提供的 JavaScript 接口，驱动上述协议在终端侧运行。 核心对象与名词 示意图：信令与建链时序（Mermaid） sequenceDiagram participant A as Peer A participant S as Signaling Server&hellip;"><meta name="generator" content="Publii Open-Source CMS for Static Site"><link rel="canonical" href="https://flymeow.github.io/webrtc-01chu-bu-ren-shi-webrtc-yu-xin-ling-fu-wu-qi.html"><link rel="alternate" type="application/atom+xml" href="https://flymeow.github.io/feed.xml" title="flymeow - RSS"><link rel="alternate" type="application/json" href="https://flymeow.github.io/feed.json" title="flymeow - JSON"><meta property="og:title" content="WebRTC 01：初步认识 WebRTC 与信令服务器"><meta property="og:site_name" content="flymeow"><meta property="og:description" content="WebRTC 01：初步认识 WebRTC 与信令服务器 1. 是什么 WebRTC 协议：两端安全实时通信的一组规则集合，涵盖协商、连通、加密与媒体/数据传输。 WebRTC API：浏览器提供的 JavaScript 接口，驱动上述协议在终端侧运行。 核心对象与名词 示意图：信令与建链时序（Mermaid） sequenceDiagram participant A as Peer A participant S as Signaling Server&hellip;"><meta property="og:url" content="https://flymeow.github.io/webrtc-01chu-bu-ren-shi-webrtc-yu-xin-ling-fu-wu-qi.html"><meta property="og:type" content="article"><link rel="stylesheet" href="https://flymeow.github.io/assets/css/style.css?v=e19cced6341d15e84c3d202e5e386440"><script type="application/ld+json">{"@context":"http://schema.org","@type":"Article","mainEntityOfPage":{"@type":"WebPage","@id":"https://flymeow.github.io/webrtc-01chu-bu-ren-shi-webrtc-yu-xin-ling-fu-wu-qi.html"},"headline":"WebRTC 01：初步认识 WebRTC 与信令服务器","datePublished":"2025-11-15T16:48+08:00","dateModified":"2025-11-15T17:02+08:00","description":"WebRTC 01：初步认识 WebRTC 与信令服务器 1. 是什么 WebRTC 协议：两端安全实时通信的一组规则集合，涵盖协商、连通、加密与媒体/数据传输。 WebRTC API：浏览器提供的 JavaScript 接口，驱动上述协议在终端侧运行。 核心对象与名词 示意图：信令与建链时序（Mermaid） sequenceDiagram participant A as Peer A participant S as Signaling Server&hellip;","author":{"@type":"Person","name":"flymeow","url":"https://flymeow.github.io/authors/flymeow/"},"publisher":{"@type":"Organization","name":"flymeow"}}</script><noscript><style>img[loading] {
+                    opacity: 1;
+                }</style></noscript></head><body class="post-template"><div class="container"><header class="header"><div class="header__logo"><a class="logo" href="https://flymeow.github.io/">flymeow</a></div></header><main class="content"><article class="post"><header><h1 class="post__title">WebRTC 01：初步认识 WebRTC 与信令服务器</h1><div class="post__meta"><time datetime="2025-11-15T16:48" class="post__date">November 15, 2025 </time><span class="post__author"><a href="https://flymeow.github.io/authors/flymeow/" class="feed__author">flymeow</a></span></div></header><div class="post__entry"><h1 id="webrtc--01：初步认识-webrtc-与信令服务器">WebRTC 01：初步认识 WebRTC 与信令服务器</h1><h2 id="1-是什么">1. 是什么</h2><ul><li>WebRTC 协议：两端安全实时通信的一组规则集合，涵盖协商、连通、加密与媒体/数据传输。</li><li>WebRTC API：浏览器提供的 JavaScript 接口，驱动上述协议在终端侧运行。</li></ul><p>核心对象与名词</p><ul><li>RTCPeerConnection：端侧连接对象。</li><li>SDP：会话描述，文本格式，承载编解码与网络参数。</li><li>Offer/Answer：协商模型，一端发起 Offer，对端返回 Answer。</li><li>ICE：交互式连通建立，收集候选并选择最佳路径。</li><li>STUN/TURN：获取公网可达地址与中继转发。</li><li>DTLS/SRTP/SCTP：加密握手、媒体加密与数据通道承载。</li><li>DataChannel：可靠/不可靠、有序/无序的数据传输。</li></ul><h2 id="2-为什么">2. 为什么</h2><ul><li>开放标准，多实现互通。</li><li>强制加密，默认安全。</li><li>NAT 穿透，面向真实网络。</li><li>拥塞控制与自适应，追求亚秒级延迟。</li></ul><h2 id="3-四步法总览">3. 四步法总览</h2><ul><li>信令 Signaling：交换 SDP 与候选所需的元数据。发生在 WebRTC 之外。</li><li>连接 Connecting：通过 ICE 完成候选收敛与连通性检测。</li><li>加密 Securing：通过 DTLS 建立密钥，派生 SRTP/SCTP。</li><li>通信 Communicating：使用 SRTP 传媒体，SCTP 传数据。</li></ul><p>示意图：信令与建链时序（Mermaid）</p><pre><code class="language-mermaid">sequenceDiagram
+  participant A as Peer A
+  participant S as Signaling Server
+  participant B as Peer B
+  participant T as STUN/TURN
+  A-&gt;&gt;S: join(room)
+  B-&gt;&gt;S: join(room)
+  A-&gt;&gt;S: offer (SDP)
+  S--&gt;&gt;B: offer
+  B-&gt;&gt;S: answer (SDP)
+  S--&gt;&gt;A: answer
+  A-&gt;&gt;S: ice-candidate
+  S--&gt;&gt;B: ice-candidate
+  B-&gt;&gt;S: ice-candidate
+  S--&gt;&gt;A: ice-candidate
+  A-&gt;&gt;T: STUN binding request
+  T--&gt;&gt;A: srflx candidate
+  B-&gt;&gt;T: STUN binding request
+  T--&gt;&gt;B: srflx candidate
+  A--&gt;&gt;B: ICE connectivity checks
+  A--&gt;&gt;B: DTLS handshake
+  A--&gt;&gt;B: SRTP/SCTP secured traffic
+</code></pre><figure class="post__image"><img loading="lazy" src="" alt="Uploading file..." data-is-external-image="true"></figure><h2 id="4-信令：不内置，需你自定义">4. 信令：不内置，需你自定义</h2><p>定义</p><ul><li>信令用于引导呼叫。它不是 WebRTC 自带能力，需用自选通道传递文本消息（如 WebSocket、HTTP）。</li></ul><p>SDP 与 Offer/Answer</p><ul><li>SDP 是 RFC 8866 定义的文本格式，常见键：<code>v/o/s/t/c</code>、<code>m</code>（媒体描述）、<code>a</code>（属性）。</li><li>JSEP 指定了浏览器使用的 SDP 子集与流程。</li><li>Offer/Answer 通过交换 SDP 在能力与参数上达成一致。</li></ul><p>消息类型是开发者自定义</p><ul><li><code>join/leave/offer/answer/ice-candidate/renegotiate/bye</code> 都是应用层自定义的消息名，用于携带 SDP 或候选及会话控制。</li></ul><p>最小消息模型</p><pre><code class="language-json">{ &quot;type&quot;: &quot;join&quot;, &quot;roomId&quot;: &quot;r1&quot;, &quot;from&quot;: &quot;uA&quot; }
+{ &quot;type&quot;: &quot;offer&quot;, &quot;roomId&quot;: &quot;r1&quot;, &quot;from&quot;: &quot;uA&quot;, &quot;to&quot;: &quot;uB&quot;, &quot;sdp&quot;: &quot;...&quot; }
+{ &quot;type&quot;: &quot;answer&quot;, &quot;roomId&quot;: &quot;r1&quot;, &quot;from&quot;: &quot;uB&quot;, &quot;to&quot;: &quot;uA&quot;, &quot;sdp&quot;: &quot;...&quot; }
+{ &quot;type&quot;: &quot;ice-candidate&quot;, &quot;roomId&quot;: &quot;r1&quot;, &quot;from&quot;: &quot;uA&quot;, &quot;to&quot;: &quot;uB&quot;, &quot;candidate&quot;: { &quot;candidate&quot;: &quot;candidate:...&quot;, &quot;sdpMid&quot;: &quot;0&quot;, &quot;sdpMLineIndex&quot;: 0 } }
+{ &quot;type&quot;: &quot;renegotiate&quot;, &quot;roomId&quot;: &quot;r1&quot;, &quot;from&quot;: &quot;uA&quot;, &quot;to&quot;: &quot;uB&quot; }
+{ &quot;type&quot;: &quot;bye&quot;, &quot;roomId&quot;: &quot;r1&quot;, &quot;from&quot;: &quot;uA&quot;, &quot;to&quot;: &quot;uB&quot; }
+{ &quot;type&quot;: &quot;leave&quot;, &quot;roomId&quot;: &quot;r1&quot;, &quot;from&quot;: &quot;uA&quot; }
+</code></pre><p>示意图：组件关系（Mermaid）</p><pre><code class="language-mermaid">graph TD
+  A[Peer A] -- signaling --&gt; S[Signaling]
+  B[Peer B] -- signaling --&gt; S
+  A -- STUN/TURN --&gt; T[(STUN/TURN)]
+  B -- STUN/TURN --&gt; T
+  A == media/data ==&gt; B
+  classDef edge stroke:#999,stroke-width:1px;
+</code></pre><p>静态图（SVG）</p><figure class="post__image"><img loading="lazy" src="images/signaling-components.svg" alt="Signaling Components" data-is-external-image="true"></figure><p></p><h2 id="5-连接：ice-的关键点">5. 连接：ICE 的关键点</h2><ul><li>候选类型：<code>host</code>、<code>srflx</code>（STUN 反射）、<code>relay</code>（TURN 中继）。</li><li>Trickle ICE：边收集边发送，缩短首帧时间。</li><li>角色：<code>controlling</code>/<code>controlled</code>，涉及最终提名。</li><li>续连：<code>ICE restart</code> 在网络变化后重新收敛。</li></ul><h2 id="6-加密与传输">6. 加密与传输</h2><ul><li>DTLS：在已建立的通道上握手并验证证书指纹（来自 SDP）。</li><li>SRTP：从 DTLS 派生密钥，用于音视频加密传输。</li><li>SCTP over DTLS：承载 DataChannel。</li></ul><h2 id="7-最小浏览器侧示例">7. 最小浏览器侧示例</h2><pre><code class="language-js">const ws = new WebSocket(&quot;wss://example.com/signal&quot;);
+const pc = new RTCPeerConnection({
+  iceServers: [{ urls: &quot;stun:stun.l.google.com:19302&quot; }],
+});
+function send(m) {
+  if (ws.readyState === 1) ws.send(JSON.stringify(m));
+}
+ws.onopen = () =&gt; send({ type: &quot;join&quot;, roomId: &quot;r1&quot;, from: &quot;uA&quot; });
+ws.onmessage = async (e) =&gt; {
+  const m = JSON.parse(e.data);
+  if (m.type === &quot;answer&quot; &amp;&amp; m.to === &quot;uA&quot;)
+    await pc.setRemoteDescription({ type: &quot;answer&quot;, sdp: m.sdp });
+  if (m.type === &quot;ice-candidate&quot; &amp;&amp; m.to === &quot;uA&quot;)
+    await pc.addIceCandidate(m.candidate);
+};
+pc.onicecandidate = (e) =&gt; {
+  if (e.candidate)
+    send({
+      type: &quot;ice-candidate&quot;,
+      roomId: &quot;r1&quot;,
+      from: &quot;uA&quot;,
+      to: &quot;uB&quot;,
+      candidate: e.candidate,
+    });
+};
+(async () =&gt; {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: true,
+    video: true,
+  });
+  stream.getTracks().forEach((t) =&gt; pc.addTrack(t, stream));
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  send({ type: &quot;offer&quot;, roomId: &quot;r1&quot;, from: &quot;uA&quot;, to: &quot;uB&quot;, sdp: offer.sdp });
+})();
+</code></pre><h2 id="8-最小信令服务（go--websocket）">8. 最小信令服务（Go + WebSocket）</h2><pre><code class="language-go">package main
+import (
+    &quot;encoding/json&quot;
+    &quot;net/http&quot;
+    &quot;sync&quot;
+    &quot;github.com/gorilla/websocket&quot;
+)
+type Message struct{ Type, RoomID, From, To, SDP string; Candidate json.RawMessage }
+type Client struct{ id string; conn *websocket.Conn }
+var rooms = struct{ sync.RWMutex; m map[string]map[*Client]struct{} }{ m: make(map[string]map[*Client]struct{}) }
+func join(c *Client, room string){ rooms.Lock(); if rooms.m[room]==nil{ rooms.m[room]=make(map[*Client]struct{}) }; rooms.m[room][c]=struct{}{}; rooms.Unlock() }
+func leave(c *Client, room string){ rooms.Lock(); if set:=rooms.m[room]; set!=nil{ delete(set,c); if len(set)==0{ delete(rooms.m,room) } }; rooms.Unlock() }
+func route(room string, from *Client, raw []byte, to string){ rooms.RLock(); for cli := range rooms.m[room]{ if cli!=from &amp;&amp; (to==&quot;&quot; || cli.id==to){ cli.conn.WriteMessage(websocket.TextMessage, raw) } }; rooms.RUnlock() }
+var up = websocket.Upgrader{ CheckOrigin: func(r *http.Request) bool { return true } }
+func ws(w http.ResponseWriter, r *http.Request){ id := r.URL.Query().Get(&quot;uid&quot;); c, _ := up.Upgrade(w,r,nil); cli := &amp;Client{id:id, conn:c}; defer c.Close()
+    for { _, raw, err := c.ReadMessage(); if err!=nil{ break }; var m Message; if json.Unmarshal(raw,&amp;m)!=nil{ continue }
+        switch m.Type{ case &quot;join&quot;: join(cli,m.RoomID); case &quot;leave&quot;: leave(cli,m.RoomID); default: route(m.RoomID, cli, raw, m.To) }
+    }
+}
+func main(){ http.HandleFunc(&quot;/signal&quot;, ws); http.ListenAndServe(&quot;:8080&quot;, nil) }
+</code></pre><h2 id="9-开发者操作清单">9. 开发者操作清单</h2><ul><li>选择信令通道与消息模型，明确字段与路由。</li><li>配置 <code>iceServers</code>，优先 STUN，生产补 TURN（支持 TCP/TLS）。</li><li>启用 Trickle ICE，缩短建链。</li><li>使用 <code>chrome://webrtc-internals</code> 与 <code>pc.getStats()</code> 观测端到端指标。</li></ul><h2 id="10-常见排障">10. 常见排障</h2><ul><li>只有 host 候选：检查 STUN 可达性与代理设置。</li><li>ICE failed：补 TURN，确认 3478/5349 策略，必要时 <code>iceTransportPolicy: &#39;relay&#39;</code> 验证。</li><li>DTLS failed：校验证书指纹与系统时间。</li><li>无声画：设备权限、轨添加与渲染绑定。</li></ul><h2 id="术语索引">术语索引</h2><ul><li>SDP：RFC 8866 文本会话描述。</li><li>JSEP：RFC 8829，浏览器如何使用 SDP。</li><li>ICE：候选收集与连通性检测。</li><li>STUN/TURN：地址反射与中继。</li><li>DTLS/SRTP/SCTP：加密与承载层。</li></ul></div><footer class="wrapper post__footer"><p class="post__last-updated">This article was updated on November 15, 2025</p><div class="post__share"></div></footer></article></main><footer class="footer"><div class="footer__inner"><div class="footer__copyright"><p>© 2024 Powered by Publii CMS :: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank" rel="noopener">Theme</a> ported by the <a href="https://getpublii.com/customization-service/" target="_blank" rel="noopener">Publii Team</a></p></div></div></footer></div><script defer="defer" src="https://flymeow.github.io/assets/js/scripts.min.js?v=c2232aa7558e9517946129d2a1b8c770"></script><script>window.publiiThemeMenuConfig={mobileMenuMode:'sidebar',animationSpeed:300,submenuWidth: 'auto',doubleClickTime:500,mobileMenuExpandableSubmenus:true,relatedContainerForOverlayMenuSelector:'.top'};</script><script>var images = document.querySelectorAll('img[loading]');
+        for (var i = 0; i < images.length; i++) {
+            if (images[i].complete) {
+                images[i].classList.add('is-loaded');
+            } else {
+                images[i].addEventListener('load', function () {
+                    this.classList.add('is-loaded');
+                }, false);
+            }
+        }</script></body></html>
