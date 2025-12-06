@@ -3,12 +3,317 @@
     <title>flymeow</title>
     <link href="https://flymeow.github.io/feed.xml" rel="self" />
     <link href="https://flymeow.github.io" />
-    <updated>2025-11-15T17:43:05+08:00</updated>
+    <updated>2025-12-07T07:23:18+08:00</updated>
     <author>
         <name>flymeow</name>
     </author>
     <id>https://flymeow.github.io</id>
 
+    <entry>
+        <title>WebRTC 02：信令、SDP、ICE/STUN/TURN 解析</title>
+        <author>
+            <name>flymeow</name>
+        </author>
+        <link href="https://flymeow.github.io/webrtc-ru-men-02gong-zuo-liu-cheng-xin-lingsdpicestunturn-quan-jie-xi.html"/>
+        <id>https://flymeow.github.io/webrtc-ru-men-02gong-zuo-liu-cheng-xin-lingsdpicestunturn-quan-jie-xi.html</id>
+
+        <updated>2025-12-07T07:22:36+08:00</updated>
+            <summary type="html">
+                <![CDATA[
+                    目标：以端到端视角梳理一次连接从“发起”到“可用”的完整链路，深入讲清信令、SDP、Offer/Answer、ICE 候选、STUN 与 TURN 的职责与交互，并给出可落地的配置与代码骨架。 示例（节选，含音视频与安全/ICE 字段） v=0 o=- 46117326 2 IN IP4 127.0.0.1 s=- t=0 0 m=audio 9 UDP/TLS/RTP/SAVPF 111 c=IN IP4 0.0.0.0 a=rtpmap:111&hellip;
+                ]]>
+            </summary>
+        <content type="html">
+            <![CDATA[
+                <blockquote>
+<p>目标：以端到端视角梳理一次连接从“发起”到“可用”的完整链路，深入讲清信令、SDP、Offer/Answer、ICE 候选、STUN 与 TURN 的职责与交互，并给出可落地的配置与代码骨架。</p></blockquote>
+<h2 id="一、阅读地图">一、阅读地图</h2>
+<ul>
+<li>全流程概览：<code>Signaling → SDP(Offer/Answer) → ICE(候选收集/交换/检测) → DTLS → SRTP/SCTP</code>。</li>
+<li>关键产物：<code>SDP</code> 文本、<code>ICE</code> 候选、<code>DTLS</code> 密钥，最终形成媒体与数据的安全通道。</li>
+<li>工具与观测：<code>chrome://webrtc-internals</code>、<code>pc.getStats()</code>、浏览器控制台日志、服务端信令日志。</li>
+</ul>
+<h2 id="二、媒体捕获与-api-关系图谱">二、媒体捕获与 API 关系图谱</h2>
+<ul>
+<li>媒体与轨：<code>MediaStream</code> 包含多个 <code>MediaStreamTrack</code>（音频/视频）。</li>
+<li>连接对象：<code>RTCPeerConnection</code> 负责协商、连通、加密与传输。</li>
+<li>收发器：<code>RTCRtpTransceiver</code> 统一收发语义（<code>direction: sendrecv/sendonly/recvonly/inactive</code>）。</li>
+<li>轨与收发器关系：<code>addTrack</code> 绑定到发送端；<code>addTransceiver</code> 更灵活地控制媒体与编码层（Simulcast/SVC）。</li>
+<li>数据通道：<code>RTCDataChannel</code> 由 <code>SCTP</code> 承载，支持可靠/不可靠、有序/无序。</li>
+</ul>
+<h2 id="三、jsep-与-sdp-结构深入">三、JSEP 与 SDP 结构深入</h2>
+<ul>
+<li>JSEP（RFC 8829）：浏览器如何使用 SDP 的规范，定义了 Offer/Answer 时机与字段。</li>
+<li>Unified Plan：现代浏览器的 SDP 模型，每个轨对应一个 <code>m=</code> 行；历史的 Plan B 已废弃。</li>
+<li>SDP 关键行语义<ul>
+<li><code>v/o/s/t</code>：版本/源/会话名/时间。</li>
+<li><code>m=</code>：媒体行（<code>audio</code>/<code>video</code>/<code>application</code>）。</li>
+<li><code>c=</code>：连接信息（通常为占位 <code>0.0.0.0</code>）。</li>
+<li><code>a=rtpmap/fmtp</code>：编解码映射与参数。</li>
+<li><code>a=setup/fingerprint</code>：<code>DTLS</code> 握手与证书指纹。</li>
+<li><code>a=ice-ufrag/ice-pwd</code>：ICE 身份信息。</li>
+<li><code>a=msid/mid/bundle</code>：轨标识、媒体标识与多媒体同路优化。</li>
+</ul>
+</li>
+</ul>
+<p>示例（节选，含音视频与安全/ICE 字段）</p><pre><code class="language-text">v=0
+o=- 46117326 2 IN IP4 127.0.0.1
+s=-
+t=0 0
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+c=IN IP4 0.0.0.0
+a=rtpmap:111 opus/48000/2
+a=fmtp:111 minptime=10;useinbandfec=1
+a=setup:actpass
+a=ice-ufrag:abc123
+a=ice-pwd:def456
+a=fingerprint:sha-256 8A:...:FF
+a=mid:0
+a=msid:stream1 trackA
+m=video 9 UDP/TLS/RTP/SAVPF 96 97
+c=IN IP4 0.0.0.0
+a=rtpmap:96 VP8/90000
+a=rtpmap:97 H264/90000
+a=sendrecv
+a=mid:1
+a=msid:stream1 trackV
+a=group:BUNDLE 0 1
+</code></pre>
+<h2 id="四、ice-高级主题：角色、优先级与提名">四、ICE 高级主题：角色、优先级与提名</h2>
+<ul>
+<li>角色分工：<code>controlling</code> 与 <code>controlled</code>，决定谁进行最终提名（<code>USE-CANDIDATE</code>）。</li>
+<li>ICE-Lite 与 ICE-Full：服务端（如 SFU）常用 <code>ICE-Lite</code>；浏览器为 <code>ICE-Full</code>。</li>
+<li>候选优先级：<code>host &gt; srflx &gt; relay</code>（通常），实际排序还受网络代价与组件影响。</li>
+<li>提名策略：常见为 <code>aggressive</code> 或 <code>regular</code> 提名，确保最佳候选对被选中并稳定。</li>
+<li>Trickle ICE：候选边收集边发送，结合早期连通性检测缩短建链时间。</li>
+</ul>
+<h2 id="五、stun-实务：反射与可达性">五、STUN 实务：反射与可达性</h2>
+<ul>
+<li>职责：返回 <code>server-reflexive</code> 地址以辅助直连，常用端口 <code>3478/udp</code>。</li>
+<li>局限：对称 NAT 下直连成功率低；需 TURN 回退。</li>
+<li>实务建议：多区域/就近 STUN，减少跨洲延迟与丢包。</li>
+</ul>
+<h2 id="六、turn-实务：中继、握手与成本">六、TURN 实务：中继、握手与成本</h2>
+<ul>
+<li>握手流程（简化）：<code>Allocate → CreatePermission → ChannelBind/Connect</code>。</li>
+<li>传输类型：<code>UDP</code>/<code>TCP</code>/<code>TLS</code>（<code>5349</code>），受企业网络与防火墙策略影响。</li>
+<li>凭证：建议短时密钥与 HMAC 派发，避免长期凭证泄漏风险。</li>
+<li>成本考量：TURN 需转发全量媒体，带宽成本高；优先直连，失败再回退 TURN。</li>
+</ul>
+<h2 id="七、信令设计：消息模型与可靠性">七、信令设计：消息模型与可靠性</h2>
+<ul>
+<li>基本消息：<code>join/leave/offer/answer/ice-candidate/renegotiate/bye</code>。</li>
+<li>路由字段：<code>roomId/from/to</code>，可扩展 <code>sessionId</code>/<code>traceId</code> 便于观测。</li>
+<li>可靠性：消息按序与去重；候选批量与背压控制；断线重连与重试策略。</li>
+</ul>
+<h2 id="八、代码骨架：含-trickle-ice-与-turn-回退">八、代码骨架：含 Trickle ICE 与 TURN 回退</h2>
+<h2 id="三、信令：你定义的消息高速路">三、信令：你定义的“消息高速路”</h2>
+<ul>
+<li>目的：交换协商所需的文本数据（<code>SDP</code>）与网络候选（<code>ICE candidate</code>），并承载会话控制（房间、加入、离开、重协商等）。</li>
+<li>载体：常见选择为 <code>WebSocket</code>，也可用 <code>HTTP(S)</code> 轮询/SSE、MQTT 等。WebRTC 不规定协议与格式。</li>
+<li>消息模型示例</li>
+</ul>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;offer&quot;,
+  &quot;roomId&quot;: &quot;r1&quot;,
+  &quot;from&quot;: &quot;uA&quot;,
+  &quot;to&quot;: &quot;uB&quot;,
+  &quot;sdp&quot;: &quot;v=0\no=- 46117326 2 IN IP4 127.0.0.1\ns=-\nt=0 0\nm=audio 9 UDP/TLS/RTP/SAVPF 111\na=rtpmap:111 opus/48000/2\na=sendrecv\n...&quot;
+}
+</code></pre>
+<ul>
+<li>设计要点<ul>
+<li>明确路由字段：<code>roomId/from/to</code>。</li>
+<li>允许 <code>Trickle ICE</code>：候选一产生就发送，缩短建链时间。</li>
+<li>保留 <code>renegotiate/bye</code> 等会话指令，支持后续增删轨与重启 ICE。</li>
+</ul>
+</li>
+</ul>
+<h2 id="四、sdp：文本会话描述与-offeranswer">四、SDP：文本会话描述与 Offer/Answer</h2>
+<ul>
+<li>定义：<code>SDP</code>（RFC 8866）是纯文本，描述会话、媒体、编解码与扩展属性。浏览器遵循 <code>JSEP</code>（RFC 8829）。</li>
+<li>典型结构</li>
+</ul>
+<pre><code class="language-text">v=0
+o=- 46117326 2 IN IP4 127.0.0.1
+s=-
+t=0 0
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+c=IN IP4 0.0.0.0
+a=rtpmap:111 opus/48000/2
+a=fmtp:111 minptime=10;useinbandfec=1
+a=setup:actpass
+a=ice-ufrag:abc123
+a=ice-pwd:def456
+a=fingerprint:sha-256 8A:...:FF
+m=video 9 UDP/TLS/RTP/SAVPF 96 97
+c=IN IP4 0.0.0.0
+a=rtpmap:96 VP8/90000
+a=rtpmap:97 H264/90000
+a=sendrecv
+</code></pre>
+<ul>
+<li>Offer/Answer 流程<ul>
+<li>主叫：<code>createOffer → setLocalDescription(offer) → 通过信令发送 offer.sdp</code></li>
+<li>被叫：<code>setRemoteDescription(offer) → createAnswer → setLocalDescription(answer) → 发送 answer.sdp</code></li>
+<li>双方：<code>setRemoteDescription</code> 完成后，开始 <code>ICE</code> 候选收集与连通性检查。</li>
+</ul>
+</li>
+</ul>
+<h2 id="五、ice：候选收集、交换与连通性检测">五、ICE：候选收集、交换与连通性检测</h2>
+<ul>
+<li>候选类型<ul>
+<li><code>host</code>：本机网卡地址。</li>
+<li><code>srflx</code>：<code>STUN</code> 反射出的公网可达地址。</li>
+<li><code>relay</code>：<code>TURN</code> 中继分配的地址，连通性最好、成本/时延较高。</li>
+</ul>
+</li>
+<li>Trickle ICE<ul>
+<li>候选边收集边发送，不等待全部候选收集完成；显著缩短首包时间。</li>
+</ul>
+</li>
+<li>连通性检测（Connectivity Checks）<ul>
+<li>双方对候选对进行 <code>STUN binding</code> 检测，选择最佳路径并进行提名（nomination）。</li>
+</ul>
+</li>
+<li>候选示例</li>
+</ul>
+<pre><code class="language-text">candidate:842163049 1 udp 1677729535 192.168.1.10 54321 typ host
+candidate:123456789 1 udp 1677724415 203.0.113.5 62344 typ srflx raddr 192.168.1.10 rport 54321
+candidate:22334455 1 udp 1677716351 198.51.100.7 3478 typ relay raddr 0.0.0.0 rport 0
+</code></pre>
+<h2 id="六、stun：拿到我在公网的样子">六、STUN：拿到“我在公网的样子”</h2>
+<ul>
+<li>作用：向 <code>STUN</code> 服务器发送 <code>binding request</code>，得到返回源地址/端口，即 <code>server-reflexive</code> 候选（<code>srflx</code>）。</li>
+<li>要点：仅提供地址反射，不转发媒体；通常使用 <code>UDP 3478</code>。公网可达性受 NAT 类型与出口策略影响。</li>
+</ul>
+<h2 id="七、turn：必要时走中继快车道">七、TURN：必要时走“中继快车道”</h2>
+<ul>
+<li>作用：当直连不可用或质量差时，向 <code>TURN</code> 服务器申请分配 <code>relay</code> 候选，由其转发数据。</li>
+<li>交互（简化）：<code>Allocate → CreatePermission → ChannelBind/Connect</code>；支持 <code>UDP/TCP/TLS</code>，常见端口 <code>3478/5349</code>。</li>
+<li>凭证策略：生产建议短时密钥（如 <code>turn:username@timestamp</code> + <code>HMAC</code>），避免长期明文凭证泄露。</li>
+<li>成本与策略：尽量优先直连，失败再回退 <code>TURN</code>；必要时可设置 <code>iceTransportPolicy: &#39;relay&#39;</code> 验证链路。</li>
+</ul>
+<h2 id="八、代码骨架：含-trickle-ice-与-turn-回退-1">八、代码骨架：含 Trickle ICE 与 TURN 回退</h2>
+<pre><code class="language-js">const ws = new WebSocket(&quot;wss://example.com/signal&quot;);
+const pc = new RTCPeerConnection({
+  iceServers: [
+    { urls: &quot;stun:stun.l.google.com:19302&quot; },
+    {
+      urls: [&quot;turn:turn.example.com:3478&quot;, &quot;turns:turn.example.com:5349&quot;],
+      username: &quot;u&quot;,
+      credential: &quot;p&quot;,
+    },
+  ],
+  iceCandidatePoolSize: 4,
+});
+function send(m) {
+  if (ws.readyState === 1) ws.send(JSON.stringify(m));
+}
+ws.onmessage = async (e) =&gt; {
+  const m = JSON.parse(e.data);
+  if (m.type === &quot;offer&quot;) {
+    await pc.setRemoteDescription({ type: &quot;offer&quot;, sdp: m.sdp });
+    const ans = await pc.createAnswer();
+    await pc.setLocalDescription(ans);
+    send({
+      type: &quot;answer&quot;,
+      roomId: m.roomId,
+      from: m.to,
+      to: m.from,
+      sdp: ans.sdp,
+    });
+  }
+  if (m.type === &quot;answer&quot;) {
+    await pc.setRemoteDescription({ type: &quot;answer&quot;, sdp: m.sdp });
+  }
+  if (m.type === &quot;ice-candidate&quot;) {
+    await pc.addIceCandidate(m.candidate);
+  }
+};
+pc.onicecandidate = (e) =&gt; {
+  if (e.candidate)
+    send({
+      type: &quot;ice-candidate&quot;,
+      roomId: &quot;r1&quot;,
+      from: &quot;uA&quot;,
+      to: &quot;uB&quot;,
+      candidate: e.candidate,
+    });
+};
+(async () =&gt; {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: true,
+    video: true,
+  });
+  stream.getTracks().forEach((t) =&gt; pc.addTrack(t, stream));
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  send({ type: &quot;offer&quot;, roomId: &quot;r1&quot;, from: &quot;uA&quot;, to: &quot;uB&quot;, sdp: offer.sdp });
+})();
+</code></pre>
+<h2 id="九、重协商与-ice-restart">九、重协商与 ICE restart</h2>
+<ul>
+<li>何时需要：网络切换（Wi‑Fi/蜂窝）、长期弱网、路径质量显著劣化。</li>
+<li>流程要点：<ul>
+<li>触发 <code>pc.restartIce()</code> 或重新生成 <code>Offer</code> 携带新 <code>ICE</code> 参数。</li>
+<li>通过信令交换新的 <code>SDP</code>，双方同步更新。</li>
+</ul>
+</li>
+<li>与增删轨：更改媒体布局时使用重协商，保持 <code>Transceiver</code> 与订阅一致。</li>
+</ul>
+<p>示例（触发 ICE 重启）</p><pre><code class="language-js">await pc.setLocalDescription(await pc.createOffer({ iceRestart: true }));
+send({ type: &quot;offer&quot;, sdp: pc.localDescription.sdp });
+</code></pre>
+<h2 id="十、nat-类型与连接策略">十、NAT 类型与连接策略</h2>
+<ul>
+<li>常见 NAT：<code>Full-cone</code>、<code>Restricted</code>、<code>Port-restricted</code>、<code>Symmetric</code>；越“对称”越难直连。</li>
+<li>策略建议<ul>
+<li>总是配置 <code>STUN</code> 与可用的 <code>TURN</code>（含 <code>TCP/TLS</code>）。</li>
+<li>启用 <code>Trickle ICE</code> 与合理的 <code>iceCandidatePoolSize</code>。</li>
+<li>网络切换或不稳定时执行 <code>ICE restart</code>（需交换新 <code>SDP</code>）。</li>
+</ul>
+</li>
+</ul>
+<h2 id="十一、状态机、观测与排障清单">十一、状态机、观测与排障清单</h2>
+<ul>
+<li>指标采集</li>
+</ul>
+<pre><code class="language-js">const stats = await pc.getStats();
+stats.forEach((r) =&gt; {
+  if (r.type === &quot;candidate-pair&quot; &amp;&amp; r.nominated) {
+    const rtt = r.currentRoundTripTime;
+    const bitrate = r.availableOutgoingBitrate;
+  }
+});
+</code></pre>
+<ul>
+<li>常见问题<ul>
+<li>只有 <code>host</code> 候选：检查 <code>STUN</code> 可达性与代理配置。</li>
+<li><code>ICE failed</code>：补 <code>TURN</code> 并验证出口策略（<code>3478/5349</code>）；必要时 <code>TCP/TLS</code>。</li>
+<li><code>DTLS failed</code>：校验证书与系统时间，排除中间设备拦截。</li>
+<li>单向媒体或无声画：检查轨道添加、<code>direction</code> 与订阅策略。</li>
+<li>候选收敛过慢：启用 Trickle、优化候选优先级与并行拨号。</li>
+<li>仅 <code>relay</code> 候选：评估 TURN 成本，检查直连被阻原因（NAT/防火墙/代理）。</li>
+</ul>
+</li>
+</ul>
+<p>状态机速览</p><ul>
+<li><code>signalingState</code>：<code>stable</code>/<code>have-local-offer</code>/<code>have-remote-offer</code> 等。</li>
+<li><code>iceConnectionState</code>：<code>new → checking → connected/completed → disconnected/failed</code>。</li>
+<li><code>connectionState</code>：<code>new → connecting → connected → disconnected/failed/closed</code>。</li>
+</ul>
+<h2 id="十二、最佳实践清单">十二、最佳实践清单</h2>
+<ul>
+<li>信令采用 <code>WebSocket</code>，消息结构简洁清晰，保留重协商指令。</li>
+<li><code>iceServers</code> 同时配置 <code>STUN</code> 与 <code>TURN</code>，凭证短时化与按需申请。</li>
+<li>启用 <code>Trickle ICE</code>，并在弱网或变更时及时 <code>ICE restart</code>。</li>
+<li>使用 <code>webrtc-internals</code> 与 <code>getStats</code> 做连通性与质量观测。</li>
+</ul>
+
+            ]]>
+        </content>
+    </entry>
     <entry>
         <title>WebRTC 01：初步认识 WebRTC 与信令服务器</title>
         <author>
